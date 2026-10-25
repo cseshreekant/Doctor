@@ -2,18 +2,32 @@ package com.medibook.service;
 
 import com.medibook.dto.AppointmentRequest;
 import com.medibook.dto.AppointmentStatusUpdateRequest;
+import com.medibook.dto.AdminDashboardResponse;
+import com.medibook.dto.AdminDashboardResponse.AdminDoctorSummary;
+import com.medibook.dto.AdminDashboardResponse.AdminPatientSummary;
+import com.medibook.dto.AdminDashboardResponse.RecentAppointment;
+import com.medibook.dto.DoctorDashboardResponse;
+import com.medibook.dto.DoctorDashboardResponse.AvailabilitySummary;
+import com.medibook.dto.DoctorDashboardResponse.DoctorAppointmentSummary;
+import com.medibook.dto.DoctorDashboardResponse.DoctorInfo;
+import com.medibook.dto.DoctorDashboardResponse.PatientSummary;
+import com.medibook.dto.PatientDashboardResponse.AppointmentSummary;
+import com.medibook.dto.PatientDashboardResponse.DoctorSummary;
 import com.medibook.entity.*;
 import com.medibook.repository.*;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.format.TextStyle;
 import java.util.List;
+import java.util.Locale;
 
 @Service
 @RequiredArgsConstructor
@@ -41,7 +55,10 @@ public class AppointmentService {
         DayOfWeek day = request.getAppointmentDate().getDayOfWeek();
         DoctorAvailability availability = doctorAvailabilityRepository
                 .findByDoctorIdAndDayOfWeek(doctor.getId(), day)
-                .orElseThrow(() -> new IllegalArgumentException("Doctor is not available on that day"));
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "This doctor has not set hours for " + day.getDisplayName(TextStyle.FULL, Locale.ENGLISH)
+                                + " yet. Please choose another available day."
+                ));
 
         LocalTime startTime = request.getStartTime();
         LocalTime endTime = startTime.plusMinutes(30);
@@ -95,15 +112,109 @@ public class AppointmentService {
         return appointmentRepository.findByDoctorId(doctorId);
     }
 
+    @Transactional
+    public AdminDashboardResponse getAdminDashboard() {
+        List<RecentAppointment> recentAppointments = appointmentRepository.findTop10ByOrderByCreatedAtDesc()
+                .stream()
+                .map(appointment -> new RecentAppointment(
+                        appointment.getId(),
+                        new AdminPatientSummary(appointment.getPatient().getFullName()),
+                        new AdminDoctorSummary(appointment.getDoctor().getFullName()),
+                        appointment.getAppointmentDate(),
+                        appointment.getStartTime(),
+                        appointment.getStatus()
+                ))
+                .toList();
+
+        return new AdminDashboardResponse(
+                patientRepository.count(),
+                doctorRepository.countByActiveTrue(),
+                appointmentRepository.count(),
+                appointmentRepository.countByStatus(AppointmentStatus.PENDING),
+                appointmentRepository.countByStatus(AppointmentStatus.CONFIRMED),
+                appointmentRepository.countByStatus(AppointmentStatus.COMPLETED),
+                appointmentRepository.countByStatus(AppointmentStatus.CANCELLED),
+                recentAppointments
+        );
+    }
+
+    @Transactional
+    public DoctorDashboardResponse getDoctorDashboard(String email) {
+        Doctor doctor = doctorRepository.findByEmail(email);
+        List<AvailabilitySummary> availabilities = doctorAvailabilityRepository.findByDoctorId(doctor.getId())
+                .stream()
+                .map(availability -> new AvailabilitySummary(
+                        availability.getId(),
+                        availability.getDayOfWeek(),
+                        availability.getStartTime(),
+                        availability.getEndTime()
+                ))
+                .toList();
+        List<DoctorAppointmentSummary> appointments = appointmentRepository.findByDoctorId(doctor.getId())
+                .stream()
+                .map(appointment -> new DoctorAppointmentSummary(
+                        appointment.getId(),
+                        new PatientSummary(appointment.getPatient().getFullName()),
+                        appointment.getAppointmentDate(),
+                        appointment.getStartTime(),
+                        appointment.getEndTime(),
+                        appointment.getReason(),
+                        appointment.getStatus()
+                ))
+                .toList();
+
+        return new DoctorDashboardResponse(
+                new DoctorInfo(doctor.getId(), doctor.getFullName(), doctor.getSpecialization(), availabilities),
+                appointments
+        );
+    }
+
     public List<Appointment> getAppointmentsForPatient(Long patientId) {
         return appointmentRepository.findByPatientId(patientId);
     }
 
-    public Appointment updateStatus(Long id, AppointmentStatusUpdateRequest request) {
+    @Transactional
+    public List<AppointmentSummary> getPatientDashboardAppointments(Long patientId) {
+        return appointmentRepository.findByPatientId(patientId).stream()
+                .map(appointment -> new AppointmentSummary(
+                        appointment.getId(),
+                        new DoctorSummary(
+                                appointment.getDoctor().getId(),
+                                appointment.getDoctor().getFullName(),
+                                appointment.getDoctor().getSpecialization()
+                        ),
+                        appointment.getAppointmentDate(),
+                        appointment.getStartTime(),
+                        appointment.getEndTime(),
+                        appointment.getReason(),
+                        appointment.getStatus(),
+                        appointment.getCreatedAt()
+                ))
+                .toList();
+    }
+
+    @Transactional
+    public void updateStatus(Long id, AppointmentStatusUpdateRequest request, String doctorEmail) {
         Appointment appointment = appointmentRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Appointment not found"));
+
+        Doctor doctor = doctorRepository.findByEmail(doctorEmail);
+        if (doctor == null || !appointment.getDoctor().getId().equals(doctor.getId())) {
+            throw new AccessDeniedException("You can only update your own appointments.");
+        }
+
+        boolean validTransition = switch (appointment.getStatus()) {
+            case PENDING -> request.getStatus() == AppointmentStatus.CONFIRMED
+                    || request.getStatus() == AppointmentStatus.REJECTED;
+            case CONFIRMED -> request.getStatus() == AppointmentStatus.COMPLETED;
+            default -> false;
+        };
+        if (!validTransition) {
+            throw new IllegalArgumentException("This appointment status cannot be changed to " + request.getStatus() + ".");
+        }
+
         appointment.setStatus(request.getStatus());
-        return appointmentRepository.save(appointment);
+        appointmentRepository.save(appointment);
     }
 
     public List<Appointment> getAllAppointments() {

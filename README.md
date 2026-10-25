@@ -24,20 +24,56 @@ cd backend
 mvn clean spring-boot:run
 ```
 
-Make sure you have Java 17 or newer and MySQL running. The backend requires database and account secrets through environment variables; do not commit real credentials. In PowerShell, set these in the terminal before starting the backend:
+Make sure you have Java 17 or newer and MySQL running. Copy `backend/.env.example` to `backend/.env` (or edit the provided local `backend/.env`) and set your local database username/password, a strong admin password, and a random JWT secret of at least 32 bytes. The local `.env` file is ignored by Git; do not commit real credentials.
+
+```dotenv
+DB_URL=jdbc:mysql://localhost:3306/medibook?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+DB_USERNAME=root
+DB_PASSWORD=your-mysql-password
+APP_ADMIN_EMAIL=admin@medibook.com
+APP_ADMIN_PASSWORD=choose-a-strong-admin-password
+JWT_SECRET=replace-with-at-least-32-random-bytes
+```
+
+For a hosted MySQL service such as Aiven, set `DB_URL` to its JDBC URL, for example `jdbc:mysql://your-host:12394/defaultdb?sslMode=REQUIRED`, and set `DB_USERNAME` and `DB_PASSWORD` separately. Do not put credentials in the URL or commit them.
+
+You can generate a random JWT secret in PowerShell:
 
 ```powershell
-$env:DB_USERNAME = "root"
-$env:DB_PASSWORD = "<your-local-mysql-password>"
-$env:APP_ADMIN_EMAIL = "admin@medibook.com"
-$env:APP_ADMIN_PASSWORD = "<choose-a-strong-admin-password>"
-$env:JWT_SECRET = "<a-long-random-secret>"
+$bytes = New-Object byte[] 32
+[Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes)
+[Convert]::ToBase64String($bytes)
+```
+
+Paste the generated value into `JWT_SECRET` in `backend/.env`, then start the backend:
+
+```powershell
+cd backend
 mvn spring-boot:run
 ```
 
 Stop any existing backend process before restarting so updated classes and configuration are loaded.
 
+#### Run the backend with Docker
+
+From the repository root, build the backend image and run it with the environment values from `backend/.env`:
+
+```powershell
+docker build -t medibook-backend .\backend
+docker run --rm -p 8080:8080 --env-file backend\.env medibook-backend
+```
+
+The container listens on port 8080 by default and honors the `PORT` environment variable when the hosting platform provides one. Do not bake `.env` or database credentials into the image.
+
 ### 3) Frontend
+
+Set the backend API URL in `frontend/.env` before starting Vite:
+
+```dotenv
+VITE_API_BASE_URL=http://localhost:8080/api
+```
+
+The frontend reads this value when creating its API client. Restart the Vite dev server after changing `.env`.
 
 ```bash
 cd frontend
@@ -58,7 +94,7 @@ The project creates an administrator automatically if none exists, using `APP_AD
 3. Choose whether the profile should be active and visible to patients, then select **Create doctor account**.
 4. Share the login email and initial password with the doctor through a secure channel. The password is stored as a hash, not returned by the API.
 
-Doctor availability is not configurable in the current frontend, so creating an account does not add appointment slots.
+After signing in, doctors can set or update weekly clinic hours from their dashboard. Patients can choose only dates and 30-minute appointment times within those hours.
 
 ## Role-specific pages
 

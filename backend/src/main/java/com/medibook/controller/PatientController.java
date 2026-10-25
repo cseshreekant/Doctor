@@ -2,6 +2,8 @@ package com.medibook.controller;
 
 import com.medibook.dto.AppointmentRequest;
 import com.medibook.dto.PatientProfileRequest;
+import com.medibook.dto.PatientDashboardResponse;
+import com.medibook.dto.PatientDashboardResponse.PatientSummary;
 import com.medibook.entity.Patient;
 import com.medibook.entity.User;
 import com.medibook.repository.PatientRepository;
@@ -14,9 +16,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.HashMap;
-import java.util.Map;
 
 @RestController
 @RequestMapping("/api")
@@ -31,15 +30,24 @@ public class PatientController {
 
     @PreAuthorize("hasRole('PATIENT')")
     @GetMapping("/patient/dashboard")
-    public ResponseEntity<Map<String, Object>> dashboard() {
+    public ResponseEntity<PatientDashboardResponse> dashboard() {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
         User user = userRepository.findByEmail(email).orElseThrow();
         Patient patient = patientRepository.findByUserId(user.getId()).orElseThrow();
 
-        Map<String, Object> response = new HashMap<>();
-        response.put("patient", patient);
-        response.put("appointments", appointmentService.getAppointmentsForPatient(patient.getId()));
-        return ResponseEntity.ok(response);
+        PatientSummary patientSummary = new PatientSummary(
+                patient.getId(),
+                patient.getFullName(),
+                patient.getEmail(),
+                patient.getPhoneNumber(),
+                patient.getDateOfBirth(),
+                patient.getGender(),
+                patient.getAddress()
+        );
+        return ResponseEntity.ok(new PatientDashboardResponse(
+                patientSummary,
+                appointmentService.getPatientDashboardAppointments(patient.getId())
+        ));
     }
 
     @PreAuthorize("hasRole('PATIENT')")

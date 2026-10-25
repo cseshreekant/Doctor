@@ -18,7 +18,7 @@ export function Navbar() {
       <nav className="navbar" aria-label="Main navigation">
         <Link className="brand-wrap" to={token ? getDashboardPath(role) : '/'}>
           <span className="brand-icon" aria-hidden="true">+</span>
-          <span className="brand-text">MediBook</span>
+          <span className="brand-text">DoctorBook</span>
         </Link>
         <div className="nav-links">
           {!token && <>
@@ -46,7 +46,7 @@ export function Navbar() {
 }
 
 export function Footer() {
-  return <footer className="footer"><span>© 2026 MediBook</span><span>Care, made simpler.</span></footer>;
+  return <footer className="footer"><span>© 2026 DoctorBook</span><span>Care, made simpler.</span></footer>;
 }
 
 export function ProtectedRoute({ children, role }) {

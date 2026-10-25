@@ -32,13 +32,13 @@ export function LoginPage() {
   return (
     <div className="page-shell auth-shell">
       <section className="auth-card">
-        <div className="auth-header"><span className="eyebrow muted">Welcome back</span><h2>Sign in to MediBook</h2><p>Your care dashboard is ready when you are.</p></div>
+        <div className="auth-header"><span className="eyebrow muted">Welcome back</span><h2>Sign in to DoctorBook</h2><p>Your care dashboard is ready when you are.</p></div>
         <form onSubmit={submit}>
           <label className="field-group"><span>Email address</span><input type="email" autoComplete="email" required value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} placeholder="you@example.com" /></label>
           <label className="field-group"><span>Password</span><input type="password" autoComplete="current-password" required value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} placeholder="Your password" /></label>
           <button className="btn btn-primary" type="submit" disabled={submitting}>{submitting ? 'Signing in...' : 'Sign in'}</button>
         </form>
-        <p className="helper-text">New to MediBook? <Link to={searchParams.get('returnTo') ? `/register?returnTo=${encodeURIComponent(searchParams.get('returnTo'))}` : '/register'}>Create a patient account</Link></p>
+        <p className="helper-text">New to DoctorBook? <Link to={searchParams.get('returnTo') ? `/register?returnTo=${encodeURIComponent(searchParams.get('returnTo'))}` : '/register'}>Create a patient account</Link></p>
       </section>
     </div>
   );
@@ -63,7 +63,7 @@ export function RegisterPage() {
       const returnTo = searchParams.get('returnTo');
       navigate(returnTo?.startsWith('/') ? returnTo : '/user', { replace: true });
     } catch (error) {
-      toast(error.response?.data?.message || (error.response ? 'Registration failed. Check the details and try again.' : 'Unable to reach MediBook. Check that the backend is running.'), 'error');
+      toast(error.response?.data?.message || (error.response ? 'Registration failed. Check the details and try again.' : 'Unable to reach DoctorBook. Check that the backend is running.'), 'error');
     } finally {
       setSubmitting(false);
     }

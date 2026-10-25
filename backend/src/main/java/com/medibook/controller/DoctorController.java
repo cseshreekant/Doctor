@@ -4,13 +4,12 @@ import com.medibook.dto.AppointmentStatusUpdateRequest;
 import com.medibook.dto.DoctorCreateRequest;
 import com.medibook.dto.DoctorAvailabilityRequest;
 import com.medibook.dto.DoctorRequest;
-import com.medibook.entity.AppointmentStatus;
+import com.medibook.dto.DoctorDashboardResponse;
+import com.medibook.dto.AdminDashboardResponse;
 import com.medibook.entity.Doctor;
 import com.medibook.entity.DoctorAvailability;
-import com.medibook.repository.AppointmentRepository;
 import com.medibook.repository.DoctorAvailabilityRepository;
 import com.medibook.repository.DoctorRepository;
-import com.medibook.repository.PatientRepository;
 import com.medibook.service.AppointmentService;
 import com.medibook.service.DoctorService;
 import jakarta.validation.Valid;
@@ -21,7 +20,6 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.HashMap;
 import java.util.Map;
 
 @RestController
@@ -34,8 +32,6 @@ public class DoctorController {
     private final AppointmentService appointmentService;
     private final DoctorRepository doctorRepository;
     private final DoctorAvailabilityRepository doctorAvailabilityRepository;
-    private final AppointmentRepository appointmentRepository;
-    private final PatientRepository patientRepository;
 
     @GetMapping("/doctors")
     public ResponseEntity<Page<Doctor>> getDoctors(
@@ -79,28 +75,15 @@ public class DoctorController {
 
     @PreAuthorize("hasRole('ADMIN')")
     @GetMapping("/admin/dashboard")
-    public ResponseEntity<Map<String, Object>> adminDashboard() {
-        Map<String, Object> response = new HashMap<>();
-        response.put("totalPatients", patientRepository.count());
-        response.put("totalDoctors", doctorRepository.countByActiveTrue());
-        response.put("totalAppointments", appointmentRepository.count());
-        response.put("pendingAppointments", appointmentRepository.countByStatus(AppointmentStatus.PENDING));
-        response.put("confirmedAppointments", appointmentRepository.countByStatus(AppointmentStatus.CONFIRMED));
-        response.put("completedAppointments", appointmentRepository.countByStatus(AppointmentStatus.COMPLETED));
-        response.put("cancelledAppointments", appointmentRepository.countByStatus(AppointmentStatus.CANCELLED));
-        response.put("recentAppointments", appointmentRepository.findTop10ByOrderByCreatedAtDesc());
-        return ResponseEntity.ok(response);
+    public ResponseEntity<AdminDashboardResponse> adminDashboard() {
+        return ResponseEntity.ok(appointmentService.getAdminDashboard());
     }
 
     @PreAuthorize("hasRole('DOCTOR')")
     @GetMapping("/doctor/dashboard")
-    public ResponseEntity<Map<String, Object>> doctorDashboard() {
+    public ResponseEntity<DoctorDashboardResponse> doctorDashboard() {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
-        Doctor doctor = doctorRepository.findByEmail(email);
-        Map<String, Object> response = new HashMap<>();
-        response.put("doctor", doctor);
-        response.put("appointments", appointmentService.getAppointmentsForDoctor(doctor.getId()));
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(appointmentService.getDoctorDashboard(email));
     }
 
     @PreAuthorize("hasRole('DOCTOR')")
@@ -109,19 +92,27 @@ public class DoctorController {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
         Doctor doctor = doctorRepository.findByEmail(email);
 
-        DoctorAvailability availability = DoctorAvailability.builder()
-                .doctor(doctor)
-                .dayOfWeek(request.getDayOfWeek())
-                .startTime(request.getStartTime())
-                .endTime(request.getEndTime())
-                .build();
+        if (!request.getEndTime().isAfter(request.getStartTime())) {
+            throw new IllegalArgumentException("End time must be later than start time.");
+        }
 
+        DoctorAvailability availability = doctorAvailabilityRepository
+                .findByDoctorIdAndDayOfWeek(doctor.getId(), request.getDayOfWeek())
+                .orElseGet(() -> DoctorAvailability.builder()
+                        .doctor(doctor)
+                        .dayOfWeek(request.getDayOfWeek())
+                        .build());
+
+        availability.setStartTime(request.getStartTime());
+        availability.setEndTime(request.getEndTime());
         return ResponseEntity.ok(doctorAvailabilityRepository.save(availability));
     }
 
-    @PreAuthorize("hasRole('DOCTOR') or hasRole('ADMIN')")
+    @PreAuthorize("hasRole('DOCTOR')")
     @PatchMapping("/appointments/{id}/status")
-    public ResponseEntity<Object> updateAppointmentStatus(@PathVariable Long id, @Valid @RequestBody AppointmentStatusUpdateRequest request) {
-        return ResponseEntity.ok(appointmentService.updateStatus(id, request));
+    public ResponseEntity<Void> updateAppointmentStatus(@PathVariable Long id, @Valid @RequestBody AppointmentStatusUpdateRequest request) {
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+        appointmentService.updateStatus(id, request, email);
+        return ResponseEntity.noContent().build();
     }
 }

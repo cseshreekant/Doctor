@@ -152,10 +152,10 @@ main { min-height: calc(100vh - 150px); }
 form { display: flex; flex-direction: column; gap: 16px; }
 .field-group { display: flex; min-width: 0; flex-direction: column; gap: 7px; color: var(--ink); font-size: 11px; font-weight: 700; }
 .field-group small { color: var(--muted); font-size: 10px; font-weight: 400; line-height: 1.5; }
-input, textarea { width: 100%; padding: 12px 13px; border: 1px solid var(--line); border-radius: 2px; outline: none; color: var(--ink); background: #fffefa; font-size: 12px; transition: border-color .15s ease, box-shadow .15s ease; }
+input, textarea, select { width: 100%; padding: 12px 13px; border: 1px solid var(--line); border-radius: 2px; outline: none; color: var(--ink); background: #fffefa; font-size: 12px; transition: border-color .15s ease, box-shadow .15s ease; }
 input::placeholder, textarea::placeholder { color: #aaa094; }
-input:focus, textarea:focus { border-color: var(--brown); box-shadow: 0 0 0 3px rgba(121, 84, 59, .09); }
-input:disabled { color: #8e857b; background: #f1ede6; }
+input:focus, textarea:focus, select:focus { border-color: var(--brown); box-shadow: 0 0 0 3px rgba(121, 84, 59, .09); }
+input:disabled, select:disabled { color: #8e857b; background: #f1ede6; }
 textarea { min-height: 96px; resize: vertical; }
 .field-hint { margin: -8px 0 0; color: var(--muted); font-size: 10px; line-height: 1.5; }
 .helper-text { margin: 20px 0 0; color: var(--muted); text-align: center; font-size: 11px; }
@@ -164,6 +164,21 @@ textarea { min-height: 96px; resize: vertical; }
 .dashboard-shell { display: flex; flex-direction: column; gap: 20px; }
 .dashboard-header { display: flex; align-items: center; justify-content: space-between; gap: 18px; }
 .header-actions { display: flex; flex-wrap: wrap; gap: 9px; }
+.dashboard-tabs { display: flex; gap: 8px; padding-bottom: 14px; border-bottom: 1px solid var(--line); }
+.dashboard-tab { display: inline-flex; align-items: center; gap: 9px; padding: 10px 14px; border: 1px solid transparent; color: var(--muted); background: transparent; cursor: pointer; font: inherit; font-size: 12px; }
+.dashboard-tab span { display: inline-grid; min-width: 21px; height: 21px; place-items: center; border-radius: 12px; background: var(--surface-alt); font-size: 10px; }
+.dashboard-tab.is-active { border-color: var(--line); color: var(--ink); background: var(--surface); }
+.doctor-tab-content { padding-top: 20px; }
+.availability-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 9px; margin-bottom: 22px; }
+.availability-card { display: flex; min-height: 76px; flex-direction: column; justify-content: center; gap: 7px; padding: 12px; border: 1px solid var(--line); background: var(--surface); }
+.availability-card strong { font-size: 11px; }
+.availability-card span { color: var(--muted); font-size: 10px; }
+.availability-card.is-unavailable { background: var(--surface-alt); }
+.availability-form { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) auto; align-items: end; gap: 12px; padding-top: 18px; border-top: 1px solid var(--line); }
+.doctor-appointment-row { align-items: center; }
+.doctor-appointment-details { min-width: 0; flex: 1; }
+.doctor-appointment-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 7px; }
+.btn-small { min-height: 30px; padding: 6px 9px; font-size: 10px; }
 .stats-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
 .stat-card { padding: 20px; border: 1px solid var(--line); background: var(--surface); }
 .stat-card span { color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; }
@@ -268,6 +283,10 @@ select:focus { border-color: var(--brown); outline: 3px solid rgba(121, 84, 59, 
   .auth-shell { min-height: auto; }
   .auth-card { padding: 25px 20px; }
   .form-grid { grid-template-columns: 1fr; }
+  .availability-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .availability-form { grid-template-columns: 1fr 1fr; }
+  .availability-form button { grid-column: 1 / -1; }
+  .dashboard-tabs { overflow-x: auto; }
   .full-width { grid-column: auto; }
   .appointment-row, .table-row { align-items: flex-start; }
   .panel { padding: 17px; }

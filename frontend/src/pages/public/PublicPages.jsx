@@ -1,9 +1,42 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import api from '../../api';
-import { getLocalDateString, LoadingState } from '../../components/DashboardUI';
+import { LoadingState } from '../../components/DashboardUI';
 import DoctorAvatar from '../../components/DoctorAvatar';
 import { useToast } from '../../components/Toast';
+
+const weekdays = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
+
+function getBookableDates(availabilities) {
+  const scheduleByDay = new Map((availabilities || []).map((slot) => [slot.dayOfWeek, slot]));
+  const today = new Date();
+
+  return Array.from({ length: 60 }, (_, offset) => {
+    const date = new Date(today.getFullYear(), today.getMonth(), today.getDate() + offset);
+    const dayOfWeek = weekdays[date.getDay()];
+    const schedule = scheduleByDay.get(dayOfWeek);
+    if (!schedule) return null;
+
+    const value = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    return { value, dayOfWeek, schedule };
+  }).filter(Boolean);
+}
+
+function getBookableTimes(schedule) {
+  if (!schedule) return [];
+  const toMinutes = (value) => {
+    const [hours, minutes] = value.slice(0, 5).split(':').map(Number);
+    return hours * 60 + minutes;
+  };
+  const start = toMinutes(schedule.startTime);
+  const end = toMinutes(schedule.endTime);
+  const times = [];
+
+  for (let time = start; time + 30 <= end; time += 30) {
+    times.push(`${String(Math.floor(time / 60)).padStart(2, '0')}:${String(time % 60).padStart(2, '0')}`);
+  }
+  return times;
+}
 
 export function HomePage() {
   return (
@@ -19,7 +52,7 @@ export function HomePage() {
           </div>
           <div className="hero-note"><span className="note-dot" /> A more considered way to manage your care</div>
         </div>
-        <div className="hero-art" aria-label="MediBook healthcare services">
+        <div className="hero-art" aria-label="DoctorBook healthcare services">
           <div className="art-orbit orbit-one" />
           <div className="art-orbit orbit-two" />
           <div className="art-cross">+</div>
@@ -137,6 +170,9 @@ export function DoctorBookingPage() {
   const toast = useToast();
   const role = localStorage.getItem('role');
   const token = localStorage.getItem('token');
+  const bookableDates = getBookableDates(doctor?.availabilities);
+  const selectedDate = bookableDates.find((date) => date.value === form.appointmentDate);
+  const bookableTimes = getBookableTimes(selectedDate?.schedule);
 
   useEffect(() => {
     api.get(`/doctors/${id}`)
@@ -144,6 +180,17 @@ export function DoctorBookingPage() {
       .catch((error) => toast(error.response?.data?.message || 'Could not load this doctor profile.', 'error'))
       .finally(() => setLoading(false));
   }, [id, toast]);
+
+  useEffect(() => {
+    if (!doctor) return;
+    const dates = getBookableDates(doctor.availabilities);
+    const date = dates.find((item) => item.value === form.appointmentDate) || dates[0];
+    const times = getBookableTimes(date?.schedule);
+    const startTime = times.includes(form.startTime) ? form.startTime : times[0] || '';
+    if (date?.value !== form.appointmentDate || startTime !== form.startTime) {
+      setForm((current) => ({ ...current, appointmentDate: date?.value || '', startTime }));
+    }
+  }, [doctor]);
 
   async function submit(event) {
     event.preventDefault();
@@ -185,12 +232,23 @@ export function DoctorBookingPage() {
         <h1 className="booking-title">Book with {doctor.fullName}</h1>
         <p className="panel-subtitle">{doctor.specialization} · Consultation fee ₹{doctor.consultationFee}</p>
         {!token && <p className="booking-note">You can explore doctors without signing in. We’ll ask you to sign in when you submit your appointment request.</p>}
-        <form onSubmit={submit} className="booking-form">
-          <label className="field-group"><span>Appointment date</span><input type="date" required min={getLocalDateString()} value={form.appointmentDate} onChange={(event) => setForm({ ...form, appointmentDate: event.target.value })} /></label>
-          <label className="field-group"><span>Preferred time</span><input type="time" required value={form.startTime} onChange={(event) => setForm({ ...form, startTime: event.target.value })} /></label>
-          <label className="field-group"><span>Reason for visit</span><textarea required maxLength={500} value={form.reason} onChange={(event) => setForm({ ...form, reason: event.target.value })} placeholder="Briefly describe what you need help with" /></label>
-          <button className="btn btn-primary" type="submit" disabled={submitting}>{submitting ? 'Sending request...' : token ? 'Request appointment' : 'Continue to sign in'}</button>
-        </form>
+        {bookableDates.length === 0 ? (
+          <p className="booking-note">This doctor hasn’t added appointment hours yet. Please check back later or choose another doctor.</p>
+        ) : (
+          <>
+            <p className="field-hint">Available days: {[...new Set(bookableDates.slice(0, 14).map((date) => date.dayOfWeek))].map((day) => day.charAt(0) + day.slice(1).toLowerCase()).join(', ')}</p>
+            <form onSubmit={submit} className="booking-form">
+              <label className="field-group"><span>Appointment date</span><select required value={form.appointmentDate} onChange={(event) => {
+                const date = bookableDates.find((item) => item.value === event.target.value);
+                const times = getBookableTimes(date?.schedule);
+                setForm({ ...form, appointmentDate: event.target.value, startTime: times[0] || '' });
+              }}>{bookableDates.map((date) => <option key={date.value} value={date.value}>{new Date(`${date.value}T00:00:00`).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}</option>)}</select></label>
+              <label className="field-group"><span>Available time</span><select required value={form.startTime} onChange={(event) => setForm({ ...form, startTime: event.target.value })}>{bookableTimes.map((time) => <option key={time} value={time}>{time}</option>)}</select></label>
+              <label className="field-group"><span>Reason for visit</span><textarea required maxLength={500} value={form.reason} onChange={(event) => setForm({ ...form, reason: event.target.value })} placeholder="Briefly describe what you need help with" /></label>
+              <button className="btn btn-primary" type="submit" disabled={submitting}>{submitting ? 'Sending request...' : token ? 'Request appointment' : 'Continue to sign in'}</button>
+            </form>
+          </>
+        )}
       </section>
     </div>
   );
