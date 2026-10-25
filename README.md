@@ -30,12 +30,14 @@ Make sure you have Java 17 or newer and MySQL running. Copy `backend/.env.exampl
 DB_URL=jdbc:mysql://localhost:3306/medibook?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
 DB_USERNAME=root
 DB_PASSWORD=your-mysql-password
+CORS_ALLOWED_ORIGINS=http://localhost:5173,https://doctorbook-agc.vercel.app
 APP_ADMIN_EMAIL=admin@medibook.com
 APP_ADMIN_PASSWORD=choose-a-strong-admin-password
 JWT_SECRET=replace-with-at-least-32-random-bytes
 ```
 
 For a hosted MySQL service such as Aiven, set `DB_URL` to its JDBC URL, for example `jdbc:mysql://your-host:12394/defaultdb?sslMode=REQUIRED`, and set `DB_USERNAME` and `DB_PASSWORD` separately. Do not put credentials in the URL or commit them.
+For deployment, set `CORS_ALLOWED_ORIGINS` in the backend hosting environment to the frontend's exact origin (for example, `https://doctorbook-agc.vercel.app`). Separate multiple origins with commas and do not include URL paths.
 
 You can generate a random JWT secret in PowerShell:
 
